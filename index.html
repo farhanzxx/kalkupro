@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#151c2f">
+  <meta name="description" content="Kalkulator digital sederhana untuk Android.">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <title>Kalkulator Digital</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh; display: grid; place-items: center; padding: 18px;
+      font-family: Arial, sans-serif; color: #f7f8ff;
+      background: radial-gradient(circle at top left, #29205d, transparent 40%), #0b1020;
+    }
+    .calculator {
+      width: 100%; max-width: 380px; padding: 22px; border-radius: 26px;
+      background: #151c2f; border: 1px solid #303950;
+      box-shadow: 0 24px 70px #0008;
+    }
+    .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .brand { font-size: 19px; font-weight: 800; }
+    .brand span { color: #887cff; }
+    .status { color: #a8f0d0; font-size: 10px; letter-spacing: 1px; }
+    .display {
+      min-height: 135px; display: flex; flex-direction: column; justify-content: flex-end;
+      gap: 12px; padding: 18px; margin-bottom: 18px; border-radius: 18px;
+      background: #0a0f1d; border: 1px solid #303950; text-align: right; overflow: hidden;
+    }
+    .history { min-height: 18px; color: #9aa6c0; font-size: 13px; overflow-wrap: anywhere; }
+    .screen { font-size: clamp(30px, 9vw, 42px); font-weight: 700; overflow-wrap: anywhere; }
+    .hint { color: #9aa6c0; font-size: 11px; }
+    .buttons { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
+    button {
+      min-height: 58px; border: 0; border-radius: 15px; background: #222b40;
+      color: #f7f8ff; font: 600 20px Arial, sans-serif; cursor: pointer;
+      touch-action: manipulation;
+    }
+    button:active { transform: scale(.95); }
+    .function { background: #33415e; color: #d4d9ff; }
+    .clear { background: #482934; color: #ffabb2; }
+    .operator, .equals { background: linear-gradient(145deg, #5246cf, #786aff); }
+    .zero { grid-column: span 2; }
+    .footer { margin-top: 18px; color: #9aa6c0; font-size: 11px; line-height: 1.6; text-align: center; }
+    .footer strong { color: #d9d5ff; }
+    @media (max-width: 360px) {
+      .calculator { padding: 15px; }
+      .buttons { gap: 7px; }
+      button { min-height: 52px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="calculator" aria-label="Kalkulator digital">
+    <header class="topbar">
+      <div class="brand">Kalku<span>Pro</span></div>
+      <div class="status">● SIAP DIGUNAKAN</div>
+    </header>
+
+    <section class="display" aria-label="Layar kalkulator">
+      <div class="history" id="history" aria-live="polite">Kalkulator siap</div>
+      <div class="screen" id="screen" aria-live="polite">0</div>
+      <div class="hint">Pilih angka dan operasi di bawah</div>
+    </section>
+
+    <section class="buttons" aria-label="Tombol kalkulator">
+      <button class="clear" data-action="clear">AC</button>
+      <button class="function" data-action="delete" aria-label="Hapus satu angka">⌫</button>
+      <button class="function" data-action="percent">%</button>
+      <button class="operator" data-operator="/">÷</button>
+
+      <button data-number="7">7</button>
+      <button data-number="8">8</button>
+      <button data-number="9">9</button>
+      <button class="operator" data-operator="*">×</button>
+
+      <button data-number="4">4</button>
+      <button data-number="5">5</button>
+      <button data-number="6">6</button>
+      <button class="operator" data-operator="-">−</button>
+
+      <button data-number="1">1</button>
+      <button data-number="2">2</button>
+      <button data-number="3">3</button>
+      <button class="operator" data-operator="+">+</button>
+
+      <button class="function" data-action="sign">±</button>
+      <button class="zero" data-number="0">0</button>
+      <button data-action="decimal">.</button>
+      <button class="equals" data-action="equals">=</button>
+    </section>
+
+    <footer class="footer">
+      Dibuat dengan <strong>HTML, CSS &amp; JavaScript</strong><br>
+      Kalkulator buatanmu sendiri ✦
+    </footer>
+  </main>
+
+  <script>
+    // Ambil elemen layar dari HTML
+    const screen = document.getElementById("screen");
+    const historyScreen = document.getElementById("history");
+    const buttons = document.querySelector(".buttons");
+
+    // Nilai awal kalkulator
+    let currentInput = "0";
+    let previousValue = null;
+    let currentOperator = null;
+    let waitingForNumber = false;
+
+    function updateScreen() {
+      screen.textContent = currentInput;
+    }
+
+    function operatorSymbol(operator) {
+      return ({ "+": "+", "-": "−", "*": "×", "/": "÷" })[operator] || operator;
+    }
+
+    function formatNumber(number) {
+      if (!Number.isFinite(number)) return "Error";
+      if (Object.is(number, -0)) return "0";
+      const rounded = Number(number.toPrecision(12));
+      return String(rounded);
+    }
+
+    function inputNumber(number) {
+      if (currentInput === "Error" || waitingForNumber) {
+        currentInput = number;
+        waitingForNumber = false;
+      } else if (currentInput === "0") {
+        currentInput = number;
+      } else if (currentInput === "-0") {
+        currentInput = "-" + number;
+      } else if (currentInput.length < 15) {
+        currentInput += number;
+      }
+      updateScreen();
+    }
+
+    function inputDecimal() {
+      if (currentInput === "Error" || waitingForNumber) {
+        currentInput = "0.";
+        waitingForNumber = false;
+      } else if (!currentInput.includes(".")) {
+        currentInput += ".";
+      }
+      updateScreen();
+    }
+
+    function calculate(first, second, operator) {
+      switch (operator) {
+        case "+": return first + second;
+        case "-": return first - second;
+        case "*": return first * second;
+        case "/": return second === 0 ? NaN : first / second;
+        default: return second;
+      }
+    }
+
+    function chooseOperator(operator) {
+      if (currentInput === "Error") clearAll();
+      const inputValue = Number(currentInput);
+
+      if (currentOperator && !waitingForNumber) {
+        const result = calculate(previousValue, inputValue, currentOperator);
+        currentInput = formatNumber(result);
+        updateScreen();
+        if (currentInput === "Error") {
+          previousValue = null;
+          currentOperator = null;
+          historyScreen.textContent = "Operasi tidak dapat dilakukan";
+          return;
+        }
+        previousValue = Number(currentInput);
+      } else {
+        previousValue = inputValue;
+      }
+
+      currentOperator = operator;
+      waitingForNumber = true;
+      historyScreen.textContent = formatNumber(previousValue) + " " + operatorSymbol(operator);
+    }
+
+    function showResult() {
+      if (currentInput === "Error") return;
+      if (currentOperator === null) {
+        historyScreen.textContent = "Masukkan operasi terlebih dahulu";
+        return;
+      }
+
+      const secondValue = Number(currentInput);
+      const firstValue = previousValue;
+      const operator = currentOperator;
+      const result = calculate(firstValue, secondValue, operator);
+
+      historyScreen.textContent = formatNumber(firstValue) + " " +
+        operatorSymbol(operator) + " " + formatNumber(secondValue) + " =";
+      currentInput = formatNumber(result);
+      previousValue = null;
+      currentOperator = null;
+      waitingForNumber = true;
+      updateScreen();
+    }
+
+    function clearAll() {
+      currentInput = "0";
+      previousValue = null;
+      currentOperator = null;
+      waitingForNumber = false;
+      historyScreen.textContent = "Kalkulator siap";
+      updateScreen();
+    }
+
+    function deleteLast() {
+      if (waitingForNumber || currentInput === "Error") {
+        currentInput = "0";
+        waitingForNumber = false;
+      } else if (currentInput.length > 1) {
+        currentInput = currentInput.slice(0, -1);
+        if (currentInput === "-") currentInput = "0";
+      } else {
+        currentInput = "0";
+      }
+      updateScreen();
+    }
+
+    function applyPercent() {
+      if (currentInput === "Error") return;
+      currentInput = formatNumber(Number(currentInput) / 100);
+      waitingForNumber = false;
+      historyScreen.textContent = "Persentase";
+      updateScreen();
+    }
+
+    function changeSign() {
+      if (currentInput === "Error" || Number(currentInput) === 0) return;
+      currentInput = currentInput.startsWith("-")
+        ? currentInput.slice(1) : "-" + currentInput;
+      updateScreen();
+    }
+
+    // Satu event listener melayani semua tombol
+    buttons.addEventListener("click", function(event) {
+      const button = event.target.closest("button");
+      if (!button) return;
+
+      if (button.dataset.number !== undefined) {
+        inputNumber(button.dataset.number);
+        return;
+      }
+      if (button.dataset.operator) {
+        chooseOperator(button.dataset.operator);
+        return;
+      }
+
+      switch (button.dataset.action) {
+        case "clear": clearAll(); break;
+        case "delete": deleteLast(); break;
+        case "decimal": inputDecimal(); break;
+        case "percent": applyPercent(); break;
+        case "sign": changeSign(); break;
+        case "equals": showResult(); break;
+      }
+    });
+
+    // Dukungan keyboard jika dibuka di komputer
+    document.addEventListener("keydown", function(event) {
+      const key = event.key;
+      if (/^[0-9]$/.test(key)) inputNumber(key);
+      else if (key === ".") inputDecimal();
+      else if (["+", "-", "*", "/"].includes(key)) chooseOperator(key);
+      else if (key === "Enter" || key === "=") {
+        event.preventDefault();
+        showResult();
+      } else if (key === "Backspace") deleteLast();
+      else if (key === "Escape") clearAll();
+      else if (key === "%") applyPercent();
+    });
+
+    updateScreen();
+
+    // Daftarkan service worker agar aplikasi dapat dibuka offline setelah dimuat.
+    if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./service-worker.js").catch((error) => {
+          console.log("Service worker belum aktif:", error);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
